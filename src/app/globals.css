@@ -67,3 +67,30 @@ body {
     border-color: #EC5B13;
   }
 }
+
+/* Scanner scan-line animation */
+@keyframes scan-line {
+  0% { top: 0; }
+  50% { top: calc(100% - 2px); }
+  100% { top: 0; }
+}
+
+.animate-scan-line {
+  animation: scan-line 2s ease-in-out infinite;
+}
+
+/* Hide html5-qrcode internal UI elements */
+#qr-reader__dashboard,
+#qr-reader__status_span,
+#qr-reader__header_message {
+  display: none !important;
+}
+
+#qr-reader video {
+  border-radius: 16px;
+  object-fit: cover !important;
+}
+
+#qr-reader {
+  border: none !important;
+}
