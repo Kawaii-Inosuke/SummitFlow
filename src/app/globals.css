@@ -82,15 +82,29 @@ body {
 /* Hide html5-qrcode internal UI elements */
 #qr-reader__dashboard,
 #qr-reader__status_span,
-#qr-reader__header_message {
+#qr-reader__header_message,
+#qr-reader__dashboard_section,
+#qr-reader__dashboard_section_csr,
+#qr-reader__dashboard_section_swaplink,
+#qr-reader > div:last-child {
   display: none !important;
-}
-
-#qr-reader video {
-  border-radius: 16px;
-  object-fit: cover !important;
 }
 
 #qr-reader {
   border: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+#qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 16px;
+}
+
+/* Hide the built-in qr shaded region */
+#qr-shaded-region {
+  display: none !important;
 }

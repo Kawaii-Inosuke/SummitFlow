@@ -174,8 +174,7 @@ export default function AdminScannerPage() {
           { facingMode: "environment" },
           {
             fps: 15,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.333,
+            qrbox: { width: 200, height: 200 },
           },
           (decodedText: string) => {
             handleScanResult(decodedText);
@@ -242,13 +241,13 @@ export default function AdminScannerPage() {
 
       <div className="flex-1 pb-20">
         {/* Camera viewport */}
-        <div className="mx-4 mt-4 rounded-2xl overflow-hidden bg-slate-800 relative aspect-[4/3]">
-          <div id="qr-reader" ref={scannerRef} className="w-full h-full [&_video]:!object-cover" />
+        <div className="mx-4 mt-3 rounded-2xl overflow-hidden bg-slate-800 relative aspect-square">
+          <div id="qr-reader" ref={scannerRef} className="w-full h-full [&_video]:!object-cover [&_video]:!w-full [&_video]:!h-full" />
 
           {/* Scanning overlay with animated corners */}
           {scanStatus === "scanning" && !cameraError && (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="relative w-[250px] h-[250px]">
+              <div className="relative w-[200px] h-[200px]">
                 {/* Corner brackets */}
                 <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-brand-orange rounded-tl-lg" />
                 <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-brand-orange rounded-tr-lg" />
