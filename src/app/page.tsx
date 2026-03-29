@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { useAuthStore } from "@/stores/auth-store";
+import { supabase } from "@/lib/supabase/client";
 import { Icon } from "@/components/ui/icon";
 import Image from "next/image";
 
@@ -27,15 +28,30 @@ export default function AuthPage() {
     regNo: "",
   });
 
-  // If already authenticated, redirect
-  if (isAuthenticated && user) {
-    if (user.role === "Admin") {
-      router.push("/admin/scanner");
-    } else {
-      router.push("/discovery");
+  // Track which login type was used for admin validation after auth resolves
+  const pendingLoginTypeRef = useRef<"student" | "admin" | null>(null);
+
+  // Watch for auth state changes and redirect accordingly
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      // If this was an admin login attempt but user isn't admin, reject
+      if (pendingLoginTypeRef.current === "admin" && user.role !== "Admin") {
+        pendingLoginTypeRef.current = null;
+        supabase.auth.signOut();
+        useAuthStore.getState().logout();
+        setError("This account does not have admin access");
+        setIsLoading(false);
+        return;
+      }
+
+      pendingLoginTypeRef.current = null;
+      if (user.role === "Admin") {
+        router.push("/admin/scanner");
+      } else {
+        router.push("/discovery");
+      }
     }
-    return null;
-  }
+  }, [isAuthenticated, user, router]);
 
   const handleLogin = async () => {
     setError("");
@@ -49,45 +65,24 @@ export default function AuthPage() {
     }
 
     setIsLoading(true);
+    pendingLoginTypeRef.current = loginType;
+
     try {
       await signInWithEmail(form.email, form.password, loginType === "admin");
-      
-      const { data: { session } } = await import("@/lib/supabase/client").then(m => m.supabase.auth.getSession());
-      if (session?.user) {
-        const { data: profile } = await import("@/lib/supabase/client").then(m => 
-          m.supabase.from("users").select("*").eq("auth_id", session.user.id).single()
-        );
-        
-        if (profile) {
-          if (loginType === "admin" && profile.role !== "Admin") {
-            await import("@/lib/supabase/client").then(m => m.supabase.auth.signOut({ scope: "local" }));
-            useAuthStore.getState().logout();
-            
-            // clear local storage token gracefully
-            if (typeof window !== "undefined") {
-              const keys = [];
-              for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith("sb-") && key.endsWith("-token")) keys.push(key);
-              }
-              keys.forEach(k => localStorage.removeItem(k));
-            }
-
-            setError("This account does not have admin access");
-            setIsLoading(false);
-            return;
-          }
-          // The global authenticated redirect at the top of the file will now flawlessly handle UI routing
-        } else {
-          setError("User profile not found. Please contact support.");
+      // onAuthStateChange in useSupabaseAuth will fetch the profile and call login().
+      // The useEffect above will then handle redirect once isAuthenticated + user are set.
+      // Add a safety timeout in case auth state never resolves
+      setTimeout(() => {
+        const state = useAuthStore.getState();
+        if (!state.isAuthenticated) {
+          setError("Login timed out. Please try again.");
           setIsLoading(false);
+          pendingLoginTypeRef.current = null;
         }
-      } else {
-        setError("Failed to resolve server session.");
-        setIsLoading(false);
-      }
+      }, 10000);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
+      pendingLoginTypeRef.current = null;
       if (message.includes("Invalid login credentials") || message.includes("refresh_token_not_found")) {
         setError("Invalid email or password. Please check your credentials.");
       } else {
@@ -113,21 +108,16 @@ export default function AuthPage() {
     }
 
     setIsLoading(true);
+    pendingLoginTypeRef.current = "student";
+
     try {
       await signUp(form.email, form.password, form.name, form.regNo);
       // Account created and auto-confirmed. Now sign them in automatically.
       await signInWithEmail(form.email, form.password);
-      // Auth state listener will handle redirect
-      setTimeout(() => {
-        const state = useAuthStore.getState();
-        if (state.isAuthenticated && state.user) {
-          router.push("/discovery");
-        } else {
-          setIsLoading(false);
-        }
-      }, 1500);
+      // useEffect above will handle redirect once auth state resolves
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signup failed";
+      pendingLoginTypeRef.current = null;
       setError(message);
       setIsLoading(false);
     }
