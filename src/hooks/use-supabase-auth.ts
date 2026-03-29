@@ -61,8 +61,23 @@ export function useSupabaseAuth() {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    logout();
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch (err) {
+      console.error("SignOut error:", err);
+    } finally {
+      if (typeof window !== "undefined") {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+      }
+      logout();
+    }
   };
 
   return { signInWithEmail, signUp, signOut };

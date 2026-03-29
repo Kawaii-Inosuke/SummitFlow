@@ -42,7 +42,7 @@ export default function ProfilePage() {
   
   const handleLogout = async () => { 
     await signOut(); 
-    router.push("/"); 
+    window.location.href = "/";
   };
 
   const handleSaveProfile = () => {
