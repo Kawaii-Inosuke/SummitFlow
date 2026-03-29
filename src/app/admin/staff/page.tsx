@@ -11,13 +11,13 @@ const mockStaff: (User & { status: string })[] = [
   { ...mockVolunteer, status: "Active" },
   {
     id: "u4", auth_id: "auth-4", name: "Priya Mehta", reg_no: "RA2211003010200",
-    email: "priya@srmist.edu.in", avatar_url: null, role: "Volunteer" as UserRole,
+    email: "priya@srmist.edu.in", phone: null, avatar_url: null, role: "Volunteer" as UserRole,
     points: 800, created_at: "2023-10-01T00:00:00Z", updated_at: "2024-01-01T00:00:00Z",
     status: "Active",
   },
   {
     id: "u5", auth_id: "auth-5", name: "Rahul Verma", reg_no: "RA2211003010300",
-    email: "rahul@srmist.edu.in", avatar_url: null, role: "Student" as UserRole,
+    email: "rahul@srmist.edu.in", phone: null, avatar_url: null, role: "Student" as UserRole,
     points: 400, created_at: "2023-11-01T00:00:00Z", updated_at: "2024-01-01T00:00:00Z",
     status: "Inactive",
   },
