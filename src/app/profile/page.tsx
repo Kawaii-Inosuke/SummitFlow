@@ -14,10 +14,8 @@ import { Icon } from "@/components/ui/icon";
 type SettingsPanel = null | "edit-profile" | "notifications" | "privacy";
 
 export default function ProfilePage() {
-  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
-  const logout = useAuthStore((s) => s.logout);
   const registrations = useEventStore((s) => s.registrations);
   const [activePanel, setActivePanel] = useState<SettingsPanel>(null);
 

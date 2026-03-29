@@ -16,7 +16,6 @@ export default function AdminProfilePage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const updateUser = useAuthStore((s) => s.updateUser);
-  const logout = useAuthStore((s) => s.logout);
   const events = useEventStore((s) => s.events);
   const scanLogs = useAdminStore((s) => s.scanLogs);
   const expenses = useAdminStore((s) => s.expenses);
