@@ -8,6 +8,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEventStore } from "@/stores/event-store";
 import { useAdminStore } from "@/stores/admin-store";
+import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 
 type SettingsPanel = null | "edit-profile" | "role-mgmt" | "notifications" | "privacy";
 
@@ -39,7 +40,11 @@ export default function AdminProfilePage() {
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
 
-  const handleLogout = () => { logout(); router.push("/"); };
+  const { signOut } = useSupabaseAuth();
+
+  const handleLogout = async () => { 
+    await signOut(); 
+  };
 
   const handleSaveProfile = () => {
     if (editName.trim()) updateUser({ name: editName.trim() });

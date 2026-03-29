@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { Event, Registration } from "@/lib/types/database";
 
 interface EventState {
@@ -17,29 +18,38 @@ interface EventState {
   toggleWishlist: (eventId: string) => void;
 }
 
-export const useEventStore = create<EventState>((set) => ({
-  events: [],
-  registrations: [],
-  selectedEvent: null,
-  filter: "All Events",
-  wishlist: [],
-  setEvents: (events) => set({ events }),
-  addEvent: (event) => set((state) => ({ events: [...state.events, event] })),
-  setRegistrations: (registrations) => set({ registrations }),
-  selectEvent: (selectedEvent) => set({ selectedEvent }),
-  setFilter: (filter) => set({ filter }),
-  addRegistration: (registration) =>
-    set((state) => ({ registrations: [...state.registrations, registration] })),
-  updateRegistration: (id, updates) =>
-    set((state) => ({
-      registrations: state.registrations.map((r) =>
-        r.id === id ? { ...r, ...updates } : r
-      ),
-    })),
-  toggleWishlist: (eventId) =>
-    set((state) => ({
-      wishlist: state.wishlist.includes(eventId)
-        ? state.wishlist.filter((id) => id !== eventId)
-        : [...state.wishlist, eventId],
-    })),
-}));
+export const useEventStore = create<EventState>()(
+  persist(
+    (set) => ({
+      events: [],
+      registrations: [],
+      selectedEvent: null,
+      filter: "All Events",
+      wishlist: [],
+      setEvents: (events) => set({ events }),
+      addEvent: (event) => set((state) => ({ events: [...state.events, event] })),
+      setRegistrations: (registrations) => set({ registrations }),
+      selectEvent: (selectedEvent) => set({ selectedEvent }),
+      setFilter: (filter) => set({ filter }),
+      addRegistration: (registration) =>
+        set((state) => ({ registrations: [...state.registrations, registration] })),
+      updateRegistration: (id, updates) =>
+        set((state) => ({
+          registrations: state.registrations.map((r) =>
+            r.id === id ? { ...r, ...updates } : r
+          ),
+        })),
+      toggleWishlist: (eventId) =>
+        set((state) => ({
+          wishlist: state.wishlist.includes(eventId)
+            ? state.wishlist.filter((id) => id !== eventId)
+            : [...state.wishlist, eventId],
+        })),
+    }),
+    {
+      name: "summit-flow-wishlist",
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ wishlist: state.wishlist }),
+    }
+  )
+);

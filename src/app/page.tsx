@@ -50,30 +50,44 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       await signInWithEmail(form.email, form.password, loginType === "admin");
-      // The onAuthStateChange listener in useSupabaseAuth will handle
-      // fetching the user profile and calling login() on the store.
-      // We wait briefly for the auth state to propagate, then redirect.
-      // The redirect will happen automatically once isAuthenticated becomes true.
-      setTimeout(() => {
-        const state = useAuthStore.getState();
-        if (state.isAuthenticated && state.user) {
-          if (loginType === "admin" && state.user.role !== "Admin") {
+      
+      const { data: { session } } = await import("@/lib/supabase/client").then(m => m.supabase.auth.getSession());
+      if (session?.user) {
+        const { data: profile } = await import("@/lib/supabase/client").then(m => 
+          m.supabase.from("users").select("*").eq("auth_id", session.user.id).single()
+        );
+        
+        if (profile) {
+          if (loginType === "admin" && profile.role !== "Admin") {
+            await import("@/lib/supabase/client").then(m => m.supabase.auth.signOut({ scope: "local" }));
+            useAuthStore.getState().logout();
+            
+            // clear local storage token gracefully
+            if (typeof window !== "undefined") {
+              const keys = [];
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith("sb-") && key.endsWith("-token")) keys.push(key);
+              }
+              keys.forEach(k => localStorage.removeItem(k));
+            }
+
             setError("This account does not have admin access");
             setIsLoading(false);
             return;
           }
-          if (state.user.role === "Admin") {
-            router.push("/admin/scanner");
-          } else {
-            router.push("/discovery");
-          }
+          // The global authenticated redirect at the top of the file will now flawlessly handle UI routing
         } else {
+          setError("User profile not found. Please contact support.");
           setIsLoading(false);
         }
-      }, 1500);
+      } else {
+        setError("Failed to resolve server session.");
+        setIsLoading(false);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
-      if (message.includes("Invalid login credentials")) {
+      if (message.includes("Invalid login credentials") || message.includes("refresh_token_not_found")) {
         setError("Invalid email or password. Please check your credentials.");
       } else {
         setError(message);

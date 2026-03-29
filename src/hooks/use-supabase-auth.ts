@@ -61,22 +61,40 @@ export function useSupabaseAuth() {
   };
 
   const signOut = async () => {
-    try {
-      await supabase.auth.signOut({ scope: "local" });
-    } catch (err) {
-      console.error("SignOut error:", err);
-    } finally {
-      if (typeof window !== "undefined") {
+    // 1. Immediate local state cleanup
+    logout();
+    
+    // 2. Clear all potentially lingering auth data
+    if (typeof window !== "undefined") {
+      try {
+        // Clear all localStorage entries related to Supabase
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+          if (key && (key.startsWith("sb-") || key.includes("auth-token") || key.includes("supabase"))) {
             keysToRemove.push(key);
           }
         }
         keysToRemove.forEach((k) => localStorage.removeItem(k));
+        sessionStorage.clear();
+      } catch (e) {
+        console.error("Storage cleanup error:", e);
       }
-      logout();
+    }
+
+    // 3. Kick off the redirect slightly before the network call to ensure responsiveness
+    // Using a brief timeout to allow the store update to propagate if needed
+    setTimeout(() => {
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+    }, 100);
+
+    // 4. Fire and forget the Supabase network call
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch (err) {
+      console.error("Supabase signOut error:", err);
     }
   };
 
