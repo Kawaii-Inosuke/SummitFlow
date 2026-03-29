@@ -5,7 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import { Header } from "@/components/ui/header";
 import { useEventStore } from "@/stores/event-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { supabase } from "@/lib/supabase/client";
 import { generateQRHash } from "@/lib/qr";
 import { ToSModal } from "@/components/ui/tos-modal";
 
@@ -49,38 +48,23 @@ export default function ReservationPage() {
 
     const qrHash = generateQRHash(user.id, eventId);
 
-    const regData = {
-      user_id: user.id,
-      event_id: eventId,
-      qr_hash: qrHash,
-      status: "Pending" as const,
-      full_name: form.fullName,
-      student_id: form.studentId,
-      phone: form.phone || null,
-      primary_interest: form.interest || null,
-      feedback_submitted: false,
-      feedback_rating: null,
-      feedback_liked: null,
-      feedback_improved: null,
-      certificate_generated: false,
-      checked_in_at: null,
-      checked_in_by: null,
-    };
-
     try {
-      // Insert into Supabase
-      const { data, error } = await supabase
-        .from("registrations")
-        .insert(regData)
-        .select()
-        .single();
+      const res = await fetch("/api/registrations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.id,
+          event_id: eventId,
+          qr_hash: qrHash,
+          full_name: form.fullName,
+          student_id: form.studentId,
+          phone: form.phone || null,
+          primary_interest: form.interest || null,
+        }),
+      });
 
-      if (error) throw error;
-
-      // Update phone on the users table if provided
-      if (form.phone) {
-        await supabase.from("users").update({ phone: form.phone }).eq("id", user.id);
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Registration failed");
 
       // Update local store
       addRegistration(data);
@@ -131,7 +115,8 @@ export default function ReservationPage() {
               placeholder="John Doe"
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 transition-colors"
+              disabled={submitting}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 transition-colors disabled:bg-slate-50 disabled:text-slate-400"
             />
           </div>
 
@@ -143,7 +128,8 @@ export default function ReservationPage() {
               placeholder="RA22110030XXXXX"
               value={form.studentId}
               onChange={(e) => setForm({ ...form, studentId: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 transition-colors"
+              disabled={submitting}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 transition-colors disabled:bg-slate-50 disabled:text-slate-400"
             />
           </div>
 
@@ -159,7 +145,8 @@ export default function ReservationPage() {
                 placeholder="XXXXX-XXXXX"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 transition-colors"
+                disabled={submitting}
+                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 transition-colors disabled:bg-slate-50 disabled:text-slate-400"
               />
             </div>
           </div>
@@ -170,7 +157,8 @@ export default function ReservationPage() {
             <select
               value={form.interest}
               onChange={(e) => setForm({ ...form, interest: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-500 focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 transition-colors appearance-none bg-white"
+              disabled={submitting}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-500 focus:outline-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange/20 transition-colors appearance-none bg-white disabled:bg-slate-50 disabled:text-slate-400"
             >
               {INTEREST_OPTIONS.map((opt) => (
                 <option key={opt} value={opt === "Select your field" ? "" : opt}>
@@ -187,11 +175,12 @@ export default function ReservationPage() {
           )}
 
           {/* Terms */}
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label className={`flex items-start gap-3 ${submitting ? "pointer-events-none opacity-60" : "cursor-pointer"}`}>
             <input
               type="checkbox"
               checked={agreed}
               onChange={() => setAgreed(!agreed)}
+              disabled={submitting}
               className="mt-0.5 w-4 h-4 rounded border-slate-300 text-brand-orange focus:ring-brand-orange"
             />
             <span className="text-xs text-slate-500 leading-relaxed">
@@ -212,11 +201,23 @@ export default function ReservationPage() {
             disabled={!form.fullName || !form.studentId || !form.phone || !form.interest || !agreed || submitting}
             className="w-full bg-brand-orange text-white font-semibold py-3.5 rounded-xl hover:bg-brand-orange-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Complete Booking
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
+            {submitting ? (
+              <>
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Processing...
+              </>
+            ) : (
+              <>
+                Complete Booking
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
+                </svg>
+              </>
+            )}
           </button>
         </div>
       </div>

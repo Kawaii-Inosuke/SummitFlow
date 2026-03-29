@@ -46,17 +46,16 @@ export function useSupabaseAuth() {
     if (!email.endsWith("@srmist.edu.in")) {
       throw new Error("Only @srmist.edu.in email addresses are allowed");
     }
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) throw error;
 
-    if (data.user) {
-      await supabase.from("users").insert({
-        auth_id: data.user.id,
-        name,
-        reg_no: regNo,
-        email,
-        role: "Student",
-      });
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, name, regNo }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Signup failed");
     }
   };
 

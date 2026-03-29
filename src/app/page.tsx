@@ -114,20 +114,20 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       await signUp(form.email, form.password, form.name, form.regNo);
-      setError("");
-      // Show success and switch to login
-      setMode("login");
-      setLoginType("student");
-      setForm({ ...form, password: "" });
-      alert("Account created! Please check your email to verify, then sign in.");
+      // Account created and auto-confirmed. Now sign them in automatically.
+      await signInWithEmail(form.email, form.password);
+      // Auth state listener will handle redirect
+      setTimeout(() => {
+        const state = useAuthStore.getState();
+        if (state.isAuthenticated && state.user) {
+          router.push("/discovery");
+        } else {
+          setIsLoading(false);
+        }
+      }, 1500);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signup failed";
-      if (message.includes("already registered")) {
-        setError("An account with this email already exists. Please sign in.");
-      } else {
-        setError(message);
-      }
-    } finally {
+      setError(message);
       setIsLoading(false);
     }
   };

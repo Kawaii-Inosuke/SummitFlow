@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { User } from "@/lib/types/database";
-import { mockUser } from "@/lib/mock-data";
 
 interface AuthState {
   user: User | null;
@@ -24,8 +23,3 @@ export const useAuthStore = create<AuthState>((set) => ({
       user: state.user ? { ...state.user, ...updates } : null,
     })),
 }));
-
-// Demo login helpers
-export function demoStudentLogin() {
-  useAuthStore.getState().login(mockUser);
-}
