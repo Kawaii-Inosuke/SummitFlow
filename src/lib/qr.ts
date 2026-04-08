@@ -1,25 +1,21 @@
-import CryptoJS from "crypto-js";
-import { v4 as uuidv4 } from "uuid";
+const QR_PREFIX = "SF:";
 
-const SECRET = process.env.NEXT_PUBLIC_QR_ENCRYPTION_KEY || "summitflow-qr-secret-2024";
-
-export function generateQRHash(userId: string, eventId: string): string {
-  const payload = JSON.stringify({
-    uid: userId,
-    eid: eventId,
-    nonce: uuidv4(),
-    ts: Date.now(),
-  });
-  return CryptoJS.AES.encrypt(payload, SECRET).toString();
+/**
+ * Generate a QR code value for a registration.
+ * Uses a simple prefix + registration ID format for clean, easily-scannable QR codes.
+ */
+export function generateQRHash(registrationId: string): string {
+  return `${QR_PREFIX}${registrationId}`;
 }
 
-export function decryptQRHash(hash: string): { uid: string; eid: string; nonce: string; ts: number } | null {
-  try {
-    const bytes = CryptoJS.AES.decrypt(hash, SECRET);
-    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-    if (!decrypted) return null;
-    return JSON.parse(decrypted);
-  } catch {
-    return null;
+/**
+ * Parse a scanned QR code value.
+ * Returns the registration ID if it's a valid SummitFlow QR, or null otherwise.
+ */
+export function parseQRCode(scannedValue: string): string | null {
+  if (scannedValue.startsWith(QR_PREFIX)) {
+    const regId = scannedValue.slice(QR_PREFIX.length);
+    if (regId.length > 0) return regId;
   }
+  return null;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { useAuthStore } from "@/stores/auth-store";
@@ -13,8 +13,6 @@ type AuthMode = "landing" | "login" | "signup";
 export default function AuthPage() {
   const router = useRouter();
   const { signInWithEmail, signUp } = useSupabaseAuth();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const user = useAuthStore((s) => s.user);
   const [mode, setMode] = useState<AuthMode>("landing");
   const [loginType, setLoginType] = useState<"student" | "admin">("student");
   const [error, setError] = useState("");
@@ -28,31 +26,6 @@ export default function AuthPage() {
     regNo: "",
   });
 
-  // Track which login type was used for admin validation after auth resolves
-  const pendingLoginTypeRef = useRef<"student" | "admin" | null>(null);
-
-  // Watch for auth state changes and redirect accordingly
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      // If this was an admin login attempt but user isn't admin, reject
-      if (pendingLoginTypeRef.current === "admin" && user.role !== "Admin") {
-        pendingLoginTypeRef.current = null;
-        supabase.auth.signOut();
-        useAuthStore.getState().logout();
-        setError("This account does not have admin access");
-        setIsLoading(false);
-        return;
-      }
-
-      pendingLoginTypeRef.current = null;
-      if (user.role === "Admin") {
-        router.push("/admin/scanner");
-      } else {
-        router.push("/discovery");
-      }
-    }
-  }, [isAuthenticated, user, router]);
-
   const handleLogin = async () => {
     setError("");
     if (!form.email || !form.password) {
@@ -65,24 +38,48 @@ export default function AuthPage() {
     }
 
     setIsLoading(true);
-    pendingLoginTypeRef.current = loginType;
 
     try {
       await signInWithEmail(form.email, form.password, loginType === "admin");
-      // onAuthStateChange in useSupabaseAuth will fetch the profile and call login().
-      // The useEffect above will then handle redirect once isAuthenticated + user are set.
-      // Add a safety timeout in case auth state never resolves
-      setTimeout(() => {
-        const state = useAuthStore.getState();
-        if (!state.isAuthenticated) {
-          setError("Login timed out. Please try again.");
-          setIsLoading(false);
-          pendingLoginTypeRef.current = null;
-        }
-      }, 10000);
+
+      // Directly fetch session + profile instead of waiting for onAuthStateChange
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setError("Login failed. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: profile, error: profileErr } = await supabase
+        .from("users")
+        .select("*")
+        .eq("auth_id", session.user.id)
+        .single();
+
+      if (profileErr || !profile) {
+        setError("User profile not found. Please contact support.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Admin role validation
+      if (loginType === "admin" && profile.role !== "Admin") {
+        await supabase.auth.signOut();
+        setError("This account does not have admin access");
+        setIsLoading(false);
+        return;
+      }
+
+      // Set user in store and redirect
+      useAuthStore.getState().login(profile);
+
+      if (profile.role === "Admin") {
+        router.push("/admin/scanner");
+      } else {
+        router.push("/discovery");
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
-      pendingLoginTypeRef.current = null;
       if (message.includes("Invalid login credentials") || message.includes("refresh_token_not_found")) {
         setError("Invalid email or password. Please check your credentials.");
       } else {
@@ -108,16 +105,31 @@ export default function AuthPage() {
     }
 
     setIsLoading(true);
-    pendingLoginTypeRef.current = "student";
 
     try {
       await signUp(form.email, form.password, form.name, form.regNo);
       // Account created and auto-confirmed. Now sign them in automatically.
       await signInWithEmail(form.email, form.password);
-      // useEffect above will handle redirect once auth state resolves
+
+      // Directly fetch session + profile
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("users")
+          .select("*")
+          .eq("auth_id", session.user.id)
+          .single();
+
+        if (profile) {
+          useAuthStore.getState().login(profile);
+          router.push("/discovery");
+          return;
+        }
+      }
+      setError("Account created but login failed. Please sign in manually.");
+      setIsLoading(false);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signup failed";
-      pendingLoginTypeRef.current = null;
       setError(message);
       setIsLoading(false);
     }

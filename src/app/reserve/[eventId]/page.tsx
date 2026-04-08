@@ -5,7 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import { Header } from "@/components/ui/header";
 import { useEventStore } from "@/stores/event-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { generateQRHash } from "@/lib/qr";
 import { ToSModal } from "@/components/ui/tos-modal";
 
 const INTEREST_OPTIONS = [
@@ -46,8 +45,6 @@ export default function ReservationPage() {
     setSubmitting(true);
     setSubmitError("");
 
-    const qrHash = generateQRHash(user.id, eventId);
-
     try {
       const res = await fetch("/api/registrations", {
         method: "POST",
@@ -55,7 +52,6 @@ export default function ReservationPage() {
         body: JSON.stringify({
           user_id: user.id,
           event_id: eventId,
-          qr_hash: qrHash,
           full_name: form.fullName,
           student_id: form.studentId,
           phone: form.phone || null,

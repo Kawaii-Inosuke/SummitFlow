@@ -13,14 +13,13 @@ export async function POST(req: NextRequest) {
     const {
       user_id,
       event_id,
-      qr_hash,
       full_name,
       student_id,
       phone,
       primary_interest,
     } = body;
 
-    if (!user_id || !event_id || !qr_hash || !full_name) {
+    if (!user_id || !event_id || !full_name) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -39,12 +38,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Insert with a placeholder qr_hash first
     const { data, error } = await supabaseAdmin
       .from("registrations")
       .insert({
         user_id,
         event_id,
-        qr_hash,
+        qr_hash: "pending",
         status: "Pending",
         full_name,
         student_id: student_id || null,
@@ -65,7 +65,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json(data);
+    // Now set the QR hash to SF:{registrationId} — short and scannable
+    const qrHash = `SF:${data.id}`;
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from("registrations")
+      .update({ qr_hash: qrHash })
+      .eq("id", data.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 400 });
+    }
+
+    return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 });
   }

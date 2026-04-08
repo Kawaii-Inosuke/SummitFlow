@@ -7,7 +7,7 @@ import { useAdminStore } from "@/stores/admin-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useEventStore } from "@/stores/event-store";
 import { supabase } from "@/lib/supabase/client";
-import { decryptQRHash } from "@/lib/qr";
+import { parseQRCode } from "@/lib/qr";
 import type { ScanLog } from "@/lib/types/database";
 import { v4 as uuidv4 } from "uuid";
 
@@ -37,6 +37,14 @@ export default function AdminScannerPage() {
     await supabase.from("scan_logs").insert({ id, ...rest }).single();
   }, [addScanLog]);
 
+  const autoResume = useCallback((delayMs: number) => {
+    autoResumeTimerRef.current = setTimeout(() => {
+      setScanStatus("scanning");
+      lastProcessedRef.current = "";
+      processingRef.current = false;
+    }, delayMs);
+  }, []);
+
   const handleScanResult = useCallback(
     async (decodedText: string) => {
       // Debounce: skip if already processing or same QR scanned within cooldown
@@ -47,39 +55,34 @@ export default function AdminScannerPage() {
       lastProcessedRef.current = decodedText;
 
       const scannedBy = adminUser?.id || "unknown";
-      const payload = decryptQRHash(decodedText);
 
-      if (!payload) {
-        // Not a SummitFlow QR — silently ignore non-SummitFlow QRs, only flag if it looks encrypted but fails
+      // Parse the QR code — expects format "SF:{registrationId}"
+      const regId = parseQRCode(decodedText);
+
+      if (!regId) {
+        // Not a SummitFlow QR — silently ignore short/unrelated QRs
         processingRef.current = false;
-        // Only show invalid if it looks like an encrypted string (has base64 chars)
-        if (decodedText.length > 20) {
-          setScanStatus("invalid");
-          await saveScanLog({
-            id: uuidv4(),
-            registration_id: null,
-            scanned_by: scannedBy,
-            event_id: "unknown",
-            scan_result: "Invalid",
-            scan_location: "Main Entrance",
-            scanned_name: null,
-            created_at: new Date().toISOString(),
-          });
-          // Auto-resume after 3 seconds
-          autoResumeTimerRef.current = setTimeout(() => {
-            setScanStatus("scanning");
-            lastProcessedRef.current = "";
-            processingRef.current = false;
-          }, 3000);
-        } else {
-          lastProcessedRef.current = "";
-        }
+        lastProcessedRef.current = "";
         return;
       }
 
-      const reg = registrations.find(
-        (r) => r.user_id === payload.uid && r.event_id === payload.eid
-      );
+      // Look up registration — first in local store, then fall back to database
+      let reg = registrations.find((r) => r.id === regId);
+
+      if (!reg) {
+        // Try fetching from Supabase directly (the local store might not have it)
+        const { data } = await supabase
+          .from("registrations")
+          .select("*")
+          .eq("id", regId)
+          .single();
+
+        if (data) {
+          reg = data;
+          // Add to local store for future lookups
+          updateRegistration(data.id, data);
+        }
+      }
 
       if (!reg) {
         setScanStatus("invalid");
@@ -87,17 +90,13 @@ export default function AdminScannerPage() {
           id: uuidv4(),
           registration_id: null,
           scanned_by: scannedBy,
-          event_id: payload.eid,
+          event_id: "unknown",
           scan_result: "Invalid",
           scan_location: "Main Entrance",
           scanned_name: null,
           created_at: new Date().toISOString(),
         });
-        autoResumeTimerRef.current = setTimeout(() => {
-          setScanStatus("scanning");
-          lastProcessedRef.current = "";
-          processingRef.current = false;
-        }, 3000);
+        autoResume(3000);
         return;
       }
 
@@ -114,11 +113,7 @@ export default function AdminScannerPage() {
           scanned_name: reg.full_name,
           created_at: new Date().toISOString(),
         });
-        autoResumeTimerRef.current = setTimeout(() => {
-          setScanStatus("scanning");
-          lastProcessedRef.current = "";
-          processingRef.current = false;
-        }, 4000);
+        autoResume(4000);
         return;
       }
 
@@ -149,13 +144,9 @@ export default function AdminScannerPage() {
       });
 
       // Auto-resume scanning after 4 seconds
-      autoResumeTimerRef.current = setTimeout(() => {
-        setScanStatus("scanning");
-        lastProcessedRef.current = "";
-        processingRef.current = false;
-      }, 4000);
+      autoResume(4000);
     },
-    [registrations, updateRegistration, saveScanLog, adminUser?.id]
+    [registrations, updateRegistration, saveScanLog, adminUser?.id, autoResume]
   );
 
   // Auto-start camera on mount
