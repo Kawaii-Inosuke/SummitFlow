@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { supabase } from "@/lib/supabase/client";
@@ -11,8 +10,7 @@ import Image from "next/image";
 type AuthMode = "landing" | "login" | "signup";
 
 export default function AuthPage() {
-  const router = useRouter();
-  const { signInWithEmail, signUp } = useSupabaseAuth();
+  const { signUp } = useSupabaseAuth();
   const [mode, setMode] = useState<AuthMode>("landing");
   const [loginType, setLoginType] = useState<"student" | "admin">("student");
   const [error, setError] = useState("");
@@ -40,23 +38,27 @@ export default function AuthPage() {
     setIsLoading(true);
 
     try {
-      await signInWithEmail(form.email, form.password, loginType === "admin");
+      // Call signInWithPassword directly to get the session back
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      });
 
-      // Directly fetch session + profile instead of waiting for onAuthStateChange
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
+      if (authError) throw authError;
+      if (!authData.user) {
         setError("Login failed. Please try again.");
         setIsLoading(false);
         return;
       }
 
-      const { data: profile, error: profileErr } = await supabase
+      // Fetch user profile
+      const { data: profile } = await supabase
         .from("users")
         .select("*")
-        .eq("auth_id", session.user.id)
+        .eq("auth_id", authData.user.id)
         .single();
 
-      if (profileErr || !profile) {
+      if (!profile) {
         setError("User profile not found. Please contact support.");
         setIsLoading(false);
         return;
@@ -70,13 +72,13 @@ export default function AuthPage() {
         return;
       }
 
-      // Set user in store and redirect
+      // Set user in store and redirect with window.location for reliability
       useAuthStore.getState().login(profile);
 
       if (profile.role === "Admin") {
-        router.push("/admin/scanner");
+        window.location.href = "/admin/scanner";
       } else {
-        router.push("/discovery");
+        window.location.href = "/discovery";
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
@@ -108,26 +110,32 @@ export default function AuthPage() {
 
     try {
       await signUp(form.email, form.password, form.name, form.regNo);
-      // Account created and auto-confirmed. Now sign them in automatically.
-      await signInWithEmail(form.email, form.password);
 
-      // Directly fetch session + profile
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("users")
-          .select("*")
-          .eq("auth_id", session.user.id)
-          .single();
+      // Sign in directly after signup
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      });
 
-        if (profile) {
-          useAuthStore.getState().login(profile);
-          router.push("/discovery");
-          return;
-        }
+      if (authError || !authData.user) {
+        setError("Account created! Please sign in manually.");
+        setIsLoading(false);
+        return;
       }
-      setError("Account created but login failed. Please sign in manually.");
-      setIsLoading(false);
+
+      const { data: profile } = await supabase
+        .from("users")
+        .select("*")
+        .eq("auth_id", authData.user.id)
+        .single();
+
+      if (profile) {
+        useAuthStore.getState().login(profile);
+        window.location.href = "/discovery";
+      } else {
+        setError("Account created but profile not found. Please sign in.");
+        setIsLoading(false);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signup failed";
       setError(message);
