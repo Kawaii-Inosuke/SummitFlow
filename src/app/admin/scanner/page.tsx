@@ -164,11 +164,15 @@ export default function AdminScannerPage() {
         await scanner.start(
           { facingMode: "environment" },
           {
-            fps: 15,
-            qrbox: { width: 200, height: 200 },
+            fps: 20,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
           },
           (decodedText: string) => {
-            handleScanResult(decodedText);
+            // Always call the latest version of the handler to avoid stale closures
+            if (handleScanResultRef.current) {
+              handleScanResultRef.current(decodedText);
+            }
           },
           () => {
             // QR not detected in this frame — this is normal, keep scanning
@@ -238,14 +242,14 @@ export default function AdminScannerPage() {
           {/* Scanning overlay with animated corners */}
           {scanStatus === "scanning" && !cameraError && (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-              <div className="relative w-[200px] h-[200px]">
+              <div className="relative w-[250px] h-[250px]">
                 {/* Corner brackets */}
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-3 border-l-3 border-brand-orange rounded-tl-lg" />
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-3 border-r-3 border-brand-orange rounded-tr-lg" />
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-3 border-l-3 border-brand-orange rounded-bl-lg" />
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-3 border-r-3 border-brand-orange rounded-br-lg" />
+                <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-brand-orange rounded-tl-xl" />
+                <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-brand-orange rounded-tr-xl" />
+                <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-brand-orange rounded-bl-xl" />
+                <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-brand-orange rounded-br-xl" />
                 {/* Scanning line animation */}
-                <div className="absolute left-2 right-2 h-0.5 bg-brand-orange/80 animate-scan-line" />
+                <div className="absolute left-3 right-3 h-0.5 bg-brand-orange/80 animate-scan-line shadow-[0_0_8px_rgba(236,91,19,0.5)]" />
               </div>
             </div>
           )}

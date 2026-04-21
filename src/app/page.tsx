@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSupabaseAuth } from "@/hooks/use-supabase-auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { supabase } from "@/lib/supabase/client";
@@ -10,6 +11,7 @@ import Image from "next/image";
 type AuthMode = "landing" | "login" | "signup";
 
 export default function AuthPage() {
+  const router = useRouter();
   const { signUp } = useSupabaseAuth();
   const [mode, setMode] = useState<AuthMode>("landing");
   const [loginType, setLoginType] = useState<"student" | "admin">("student");
@@ -72,15 +74,19 @@ export default function AuthPage() {
         return;
       }
 
-      // Set user in store and redirect with window.location for reliability
+      // Set user in store and redirect
       useAuthStore.getState().login(profile);
 
+      // Using window.location.href for more reliable cross-page transitions in auth flows
       if (profile.role === "Admin") {
         window.location.href = "/admin/scanner";
       } else {
-        window.location.href = "/discovery";
+        router.push("/discovery");
+        // Ensure loading is reset if router navigation is async
+        setTimeout(() => setIsLoading(false), 1000);
       }
     } catch (err: unknown) {
+      console.error("Login session error:", err);
       const message = err instanceof Error ? err.message : "Login failed";
       if (message.includes("Invalid login credentials") || message.includes("refresh_token_not_found")) {
         setError("Invalid email or password. Please check your credentials.");
@@ -131,7 +137,7 @@ export default function AuthPage() {
 
       if (profile) {
         useAuthStore.getState().login(profile);
-        window.location.href = "/discovery";
+        router.push("/discovery");
       } else {
         setError("Account created but profile not found. Please sign in.");
         setIsLoading(false);
